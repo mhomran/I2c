@@ -46,3 +46,4 @@ extern const I2cConfig_t* I2c_GetConfig(void);
 #endif
 
 #endif
+/*****************************End of File ************************************/
