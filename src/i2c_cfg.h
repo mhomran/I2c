@@ -23,8 +23,8 @@
 typedef enum
 {
   /* TODO: Populate this list based on the MCU */
-  I2c_0,
-  I2c_MAX
+  I2C_0,
+  I2C_MAX
 }I2c_t;
 
 typedef struct
