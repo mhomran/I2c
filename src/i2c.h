@@ -20,11 +20,13 @@ extern "C"{
 
 extern void I2c_Init(const I2cConfig_t * const Config);
 extern uint8_t I2c_SendByte(const I2c_t I2c, 
+                            const uint8_t Address,
                             const uint8_t Register, 
                             const uint8_t Data);
 extern uint8_t I2c_ReceiveByte(const I2c_t I2c, 
-                            const uint8_t Register, 
-                            uint8_t* const Data);
+                               const uint8_t Address,
+                               const uint8_t Register, 
+                               uint8_t* const Data);
 
 #ifdef __cplusplus
 } // extern "C"
