@@ -22,10 +22,19 @@
 #define I2C_SR_MT_ACK 0x28 /**< ACK is received after sending a byte */
 #define I2C_SR_MT_RSTA 0x10 /**< the restart bit is sent successfully */
 
-#define I2C_PRESCALER_1 0 /**< the mask correspond to prescaler 1 */
-#define I2C_PRESCALER_4 1 /**< the mask correspond to prescaler 4 */
-#define I2C_PRESCALER_16 2 /**< the mask correspond to prescaler 16 */
-#define I2C_PRESCALER_64 3 /**< the mask correspond to prescaler 64 */
+#define I2C_PRESCALER_NUM 4 /**< Number of the prescalers */
+
+/**
+ * @brief The difference between two successive prescalers.
+ */
+#define I2C_PRESCALER_STEP 4 
+
+/**
+ * @brief Convert from a frequency and prescaler to a register value.
+ * This formula is described in the datasheet.
+ */
+#define I2C_FREQ_TO_REG(__FREQUENCY__, __PRESCALER__) \
+(uint32_t)(((SYSTEM_CLK / __FREQUENCY__) - 16) / (2 * __PRESCALER__));
 /******************************************************************************
  * Includes
  ******************************************************************************/
@@ -130,37 +139,25 @@ I2c_SetSclFreq(const I2c_t I2c, const uint32_t Frequency)
     }
 
   uint32_t BitrateReg;
+  uint8_t PrescalerIndex;
+  uint8_t Prescaler;
+  uint8_t i;
 
-  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 1));
-  *(gStatusReg[I2c]) = I2C_PRESCALER_1;
-  if(BitrateReg < 255)
+  for(PrescalerIndex = 0; PrescalerIndex < I2C_PRESCALER_NUM; PrescalerIndex++)
     {
-      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
-      return 1;
-    }
-
-  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 4));
-  *(gStatusReg[I2c]) = I2C_PRESCALER_4;
-  if(BitrateReg < 255)
-    {
-      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
-      return 1;
-    }
-
-  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 16));
-  *(gStatusReg[I2c]) = I2C_PRESCALER_16;
-  if(BitrateReg < 255)
-    {
-      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
-      return 1;
-    }
-
-  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 64));
-  *(gStatusReg[I2c]) = I2C_PRESCALER_64;
-  if(BitrateReg < 255)
-    {
-      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
-      return 1;
+      Prescaler = 1;
+      for(i = 0; i < PrescalerIndex; i++)
+        {
+          Prescaler *= I2C_PRESCALER_STEP;
+        }
+      
+      BitrateReg = I2C_FREQ_TO_REG(Frequency, Prescaler);
+      if(BitrateReg < 255)
+        {
+          *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
+          *(gStatusReg[I2c]) = PrescalerIndex;
+          return 1;
+        }
     }
 
   return 0;
