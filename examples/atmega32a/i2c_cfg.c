@@ -24,7 +24,7 @@
 static const I2cConfig_t I2cConfig[] =
 {
   //TODO: configure your UART peripherals
-  { I2C_0, 100000 }
+  { I2C_0, 400000 }
 };
 /******************************************************************************
 * Function Definitions

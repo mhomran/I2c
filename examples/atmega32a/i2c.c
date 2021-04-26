@@ -19,9 +19,13 @@
 
 #define I2C_SR_MT_STA 0x08 /**< the start bit is sent successfully */
 #define I2C_SR_MT_AACK 0x18 /**< ACK is received after sending the address */
-#define I2C_SR_MT_ACK 0x18 /**< ACK is received after sending a byte */
+#define I2C_SR_MT_ACK 0x28 /**< ACK is received after sending a byte */
 #define I2C_SR_MT_RSTA 0x10 /**< the restart bit is sent successfully */
 
+#define I2C_PRESCALER_1 0 /**< the mask correspond to prescaler 1 */
+#define I2C_PRESCALER_4 1 /**< the mask correspond to prescaler 4 */
+#define I2C_PRESCALER_16 2 /**< the mask correspond to prescaler 16 */
+#define I2C_PRESCALER_64 3 /**< the mask correspond to prescaler 64 */
 /******************************************************************************
  * Includes
  ******************************************************************************/
@@ -76,7 +80,8 @@ static uint8_t I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
 *//**
 * \b Description:
 * initialize the I2C peripherals <br>
-* PRE-CONDITION: The SCL and SDA Pins are configured properly <br>
+* PRE-CONDITION: The SCL and SDA Pins are configured input with pull-up
+* enabled <br>
 * PRE-CONDITION: I2C peripherals clocks are enabled <br>
 * POST-CONDITION: I2C driver is set up <br>
 * @return A pointer to the configuration table.
@@ -112,23 +117,53 @@ I2c_Init(const I2cConfig_t * const Config)
 * Utility function to set the SCL frequency <br>
 * POST-CONDITION: The SCL frequency is set up <br>
 * @param I2c the id of the I2c peripheral
-* @param Frequency the frequency of the SCL in Hz. It must be less than 400000 Hz.
+* @param Frequency the frequency of the SCL in Hz. It must be less than or
+* equal 400000 Hz.
 * @return uint8_t 1 if the frequency is set up, 0 otherwise.
  ******************************************************************************/
 inline static uint8_t 
 I2c_SetSclFreq(const I2c_t I2c, const uint32_t Frequency)
 {
-  if(!(Frequency < 400000ul))
+  if(!(Frequency <= 400000ul))
     {
       return 0; 
     }
 
-  *(gBitrateReg[I2c]) = ((SYSTEM_CLK / Frequency) - 16) / 8;
+  uint32_t BitrateReg;
 
-  //((SYSTEM_CLK / Frequency) - 16) / (2 (4^prescaler))
-  *(gStatusReg[I2c]) = 0x0; //set the prescaler to 1
+  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 1));
+  *(gStatusReg[I2c]) = I2C_PRESCALER_1;
+  if(BitrateReg < 255)
+    {
+      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
+      return 1;
+    }
 
-  return 1;
+  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 4));
+  *(gStatusReg[I2c]) = I2C_PRESCALER_4;
+  if(BitrateReg < 255)
+    {
+      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
+      return 1;
+    }
+
+  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 16));
+  *(gStatusReg[I2c]) = I2C_PRESCALER_16;
+  if(BitrateReg < 255)
+    {
+      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
+      return 1;
+    }
+
+  BitrateReg = (uint32_t)(((SYSTEM_CLK / Frequency) - 16) / (2 * 64));
+  *(gStatusReg[I2c]) = I2C_PRESCALER_64;
+  if(BitrateReg < 255)
+    {
+      *(gBitrateReg[I2c]) = (uint8_t)BitrateReg;
+      return 1;
+    }
+
+  return 0;
 }
 
 /******************************************************************************
@@ -209,7 +244,7 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
       //TODO: implement
       StatusReg = *(gStatusReg[I2c]);
       //mask the first two bits which are related to the bitrate configuration.
-      StatusReg &= 0xFC;
+      StatusReg &= 0xF8;
 
       switch(Flag) 
       {
@@ -248,7 +283,7 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
 inline static void
 I2c_SendStartBit(const I2c_t I2c)
 {
-  *(gControlReg[I2c]) |= 1 << TWSTA;
+  *(gControlReg[I2c]) |= 1 << TWSTA | 1 << TWINT;
 }
 
 /******************************************************************************
@@ -262,7 +297,7 @@ I2c_SendStartBit(const I2c_t I2c)
 inline static void
 I2c_SendStopBit(const I2c_t I2c)
 {
-  *(gControlReg[I2c]) |= 1 << TWSTO;
+  *(gControlReg[I2c]) |= 1 << TWSTO | 1 << TWINT;
 }
 
 /******************************************************************************
@@ -278,6 +313,7 @@ inline static void
 I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data)
 {
   *(gDataReg[I2c]) = Data;
+  *(gControlReg[I2c]) |= 1 << TWINT;
 }
 
 /*****************************End of File ************************************/
