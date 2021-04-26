@@ -28,7 +28,7 @@ typedef enum {
 /******************************************************************************
  * module variables definitions
  ******************************************************************************/
-static volatile uint8_t* const gEnableReg[I2C_MAX] =
+static volatile uint8_t* const gControlReg[I2C_MAX] =
 {
   TWCR
 };
@@ -42,6 +42,12 @@ static volatile uint8_t* const gStatusReg[I2C_MAX] =
 {
   TWSR
 };
+
+static volatile uint8_t* const gDataReg[I2C_MAX] =
+{
+  TWDR
+};
+
 
 /******************************************************************************
  * functions prototypes
@@ -127,7 +133,7 @@ I2c_SetSclFreq(const I2c_t I2c, const uint32_t Frequency)
 inline static void
 I2c_Enable(const I2c_t I2c)
 {
-  *(gEnableReg[I2c]) |= (1 << TWEN) | (1 << TWIE) | (1 << TWEA);
+  *(gControlReg[I2c]) |= 1 << TWEN;
 }
 
 /******************************************************************************
@@ -219,7 +225,7 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
 inline static void
 I2c_SendStartBit(const I2c_t I2c)
 {
-  //TODO: implement
+  *(gControlReg[I2c]) |= 1 << TWSTA;
 }
 
 /******************************************************************************
@@ -233,7 +239,7 @@ I2c_SendStartBit(const I2c_t I2c)
 inline static void
 I2c_SendStopBit(const I2c_t I2c)
 {
-  //TODO: implement
+  *(gControlReg[I2c]) |= 1 << TWSTO;
 }
 
 /******************************************************************************
@@ -248,7 +254,7 @@ I2c_SendStopBit(const I2c_t I2c)
 inline static void
 I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data)
 {
-  //TODO: implement
+  *(gDataReg[I2c]) = Data;
 }
 
 /*****************************End of File ************************************/
