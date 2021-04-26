@@ -12,6 +12,16 @@
 
 #define I2C_WRITE 0 /**< A mask to OR with the address for write operation */
 #define I2C_READ 1 /**< A mask to OR with the address for read operation */
+
+//Status register codes:
+
+//master transmitter
+
+#define I2C_SR_MT_STA 0x08 /**< the start bit is sent successfully */
+#define I2C_SR_MT_AACK 0x18 /**< ACK is received after sending the address */
+#define I2C_SR_MT_ACK 0x18 /**< ACK is received after sending a byte */
+#define I2C_SR_MT_RSTA 0x10 /**< the restart bit is sent successfully */
+
 /******************************************************************************
  * Includes
  ******************************************************************************/
@@ -22,7 +32,7 @@
  * typedefs 
  ******************************************************************************/
 typedef enum {
-  I2C_FLAG_SB,    /**< Start bit is sent successfully */
+  I2C_FLAG_STA,    /**< Start bit is sent successfully */
   I2C_FLAG_ACK,   /**< Acknowledge is received/sent */
 }I2cFlag_t;
 /******************************************************************************
@@ -157,7 +167,7 @@ I2c_SendByte(const I2c_t I2c,
   uint8_t res;
 
   I2c_SendStartBit(I2c);
-  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_SB);
+  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_STA);
   if(res == 0) return 0;
 
   I2c_WriteDataReg(I2c, (Address << 1) | I2C_WRITE);
@@ -181,8 +191,8 @@ I2c_SendByte(const I2c_t I2c,
 /******************************************************************************
 * Function : I2C_WaitOnFlagUntilTimeout()
 *//**
-* \b Description: Utility function handles I2C Communication Timeout. It also clears
-* the flag if set. <br>
+* \b Description: Utility function handles I2C Communication Timeout.
+* It also clears the flag if set. <br>
 * @param  I2c the id of the I2c peripheral
 * @param  Flag flag to check.
 * @return uint8_t 1 if there's no timeout, 0 otherwise
@@ -192,16 +202,29 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
 {
   uint16_t Timeout = 0;
   uint8_t Status = 0;
-   
+  uint8_t StatusReg;
+
   while (Status == 0 && Timeout < I2C_TIMEOUT)  
     {
       //TODO: implement
+      StatusReg = *(gStatusReg[I2c]);
+      //mask the first two bits which are related to the bitrate configuration.
+      StatusReg &= 0xFC;
+
       switch(Flag) 
       {
-        case I2C_FLAG_SB:
+        case I2C_FLAG_STA:
+          if(StatusReg == I2C_SR_MT_STA)
+            {
+              Status = 1;
+            }
         break;
         
         case I2C_FLAG_ACK:
+          if(StatusReg == I2C_SR_MT_AACK || StatusReg == I2C_SR_MT_ACK)
+            {
+              Status = 1;
+            }
         break;
 
         default:
