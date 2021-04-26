@@ -17,6 +17,7 @@
  ******************************************************************************/
 #include <inttypes.h>
 #include "i2c.h"
+#include "i2c_memmap.h"
 /******************************************************************************
  * typedefs 
  ******************************************************************************/
@@ -28,10 +29,10 @@ typedef enum {
  * functions prototypes
  ******************************************************************************/
 inline static uint8_t I2c_SetSclFreq(const I2c_t I2c, const uint32_t Freq);
-inline static uint8_t I2c_Enable(const I2c_t I2c);
-inline static uint8_t I2c_SendStartBit(const I2c_t I2c);
-inline static uint8_t I2c_SendStopBit(const I2c_t I2c);
-inline static uint8_t I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data);
+inline static void I2c_Enable(const I2c_t I2c);
+inline static void I2c_SendStartBit(const I2c_t I2c);
+inline static void I2c_SendStopBit(const I2c_t I2c);
+inline static void I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data);
 static uint8_t I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag);
 /******************************************************************************
  * functions definitions
@@ -66,12 +67,7 @@ I2c_Init(const I2cConfig_t * const Config)
           //TODO: handle this error
           return;
         }
-      res = I2c_Enable(i);
-      if(res == 0) 
-        {
-          //TODO: handle this error
-          return;
-        }
+      I2c_Enable(i);
     }
 }
 
@@ -82,13 +78,13 @@ I2c_Init(const I2cConfig_t * const Config)
 * Utility function to set the SCL frequency <br>
 * POST-CONDITION: The SCL frequency is set up <br>
 * @param I2c the id of the I2c peripheral
-* @param Freq the frequency of the SCL.
-* @return uint8_t 1 if everything is okay, 0 otherwise.
+* @param Freq the frequency of the SCL in Hz. It must be less than 400000 Hz.
+* @return uint8_t 1 if the frequency is set up, 0 otherwise.
  ******************************************************************************/
 inline static uint8_t 
 I2c_SetSclFreq(const I2c_t I2c, const uint32_t Freq)
 {
-  if(!(I2c < I2C_MAX && Freq < 400000ul))
+  if(!(Freq < 400000ul))
     {
       return 0; 
     }
@@ -105,17 +101,12 @@ I2c_SetSclFreq(const I2c_t I2c, const uint32_t Freq)
 * Utility function to enable the peripheral <br>
 * POST-CONDITION: The I2C peripheral clock is enabled <br>
 * @param I2c the id of the I2c peripheral
-* @return uint8_t 1 if everything is okay, 0 otherwise.
+* @return void
  ******************************************************************************/
-inline static uint8_t 
+inline static void
 I2c_Enable(const I2c_t I2c)
 {
-  if(!(I2c < I2C_MAX))
-    {
-      return 0; 
-    }
   //TODO: implement
-  return 1;
 }
 
 /******************************************************************************
@@ -136,7 +127,6 @@ I2c_SendByte(const I2c_t I2c,
 {
   if(!(I2c < I2C_MAX)) return 0; 
     
-  uint16_t Timeout;
   uint8_t res;
 
   I2c_SendStartBit(I2c);
@@ -203,9 +193,9 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
 * \b Description: Utility function to send a start bit on the I2c bus. <br>
 * @param  I2c the id of the I2c peripheral
 * @param  Flag flag to check.
-* @return uint8_t 1 if there's no timeout, 0 otherwise
+* @return void
 ******************************************************************************/
-inline static uint8_t 
+inline static void
 I2c_SendStartBit(const I2c_t I2c)
 {
   //TODO: implement
@@ -217,9 +207,9 @@ I2c_SendStartBit(const I2c_t I2c)
 * \b Description: Utility function to send a stop bit on the I2c bus. <br>
 * @param  I2c the id of the I2c peripheral
 * @param  Flag flag to check.
-* @return uint8_t 1 if there's no timeout, 0 otherwise
+* @return void
 ******************************************************************************/
-inline static uint8_t 
+inline static void
 I2c_SendStopBit(const I2c_t I2c)
 {
   //TODO: implement
@@ -232,9 +222,9 @@ I2c_SendStopBit(const I2c_t I2c)
 * to be send by the peripheral.<br>
 * @param  I2c the id of the I2c peripheral
 * @param  Flag flag to check.
-* @return uint8_t 1 if there's no timeout, 0 otherwise
+* @return void
 ******************************************************************************/
-inline static uint8_t 
+inline static void
 I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data)
 {
   //TODO: implement
