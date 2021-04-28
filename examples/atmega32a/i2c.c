@@ -186,7 +186,10 @@ I2c_Enable(const I2c_t I2c)
 * @param I2c the id of the I2C peripheral
 * @param Address the address of the register to write using I2C peripheral
 * @param Data the byte to write 
-* @return uint8_t 1 if everything is okay, 0 otherwise.
+* @return uint8_t 1 the operations is done successfully
+*                 2 start bit error
+*                 3 address error
+*                 4 reg/data sending error
  ******************************************************************************/
 extern uint8_t 
 I2c_SendByte(const I2c_t I2c, 
@@ -200,25 +203,24 @@ I2c_SendByte(const I2c_t I2c,
 
   I2c_SendStartBit(I2c);
   res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_STA);
-  if(res == 0) return 0;
+  if(res == 0) return 2;
 
   I2c_WriteDataReg(I2c, (Address << 1) | I2C_WRITE);
   res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_ACK);
-  if(res == 0) return 0;
+  if(res == 0) return 3;
 
   I2c_WriteDataReg(I2c, Register);
   res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_ACK);
-  if(res == 0) return 0;
+  if(res == 0) return 4;
   
   I2c_WriteDataReg(I2c, Data);
   res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_ACK);
-  if(res == 0) return 0;
+  if(res == 0) return 4;
 
   I2c_SendStopBit(I2c);
 
   return 1;
 }
-
 
 /******************************************************************************
 * Function : I2C_WaitOnFlagUntilTimeout()
