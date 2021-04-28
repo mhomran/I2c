@@ -27,7 +27,7 @@
 /**
  * @brief The difference between two successive prescalers.
  */
-#define I2C_PRESCALER_STEP 4 
+#define I2C_PRESCALER_STEP 4
 
 /**
  * @brief Convert from a frequency and prescaler to a register value.
@@ -150,7 +150,7 @@ I2c_SetSclFreq(const I2c_t I2c, const uint32_t Frequency)
         {
           Prescaler *= I2C_PRESCALER_STEP;
         }
-      
+
       BitrateReg = I2C_FREQ_TO_REG(Frequency, Prescaler);
       if(BitrateReg < 255)
         {
@@ -235,25 +235,27 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
   uint16_t Timeout = 0;
   uint8_t Status = 0;
   uint8_t StatusReg;
+  uint8_t FinishOp;
 
   while (Status == 0 && Timeout < I2C_TIMEOUT)  
     {
-      //TODO: implement
+      FinishOp = *(gControlReg[I2c]) & (1 << TWINT);
       StatusReg = *(gStatusReg[I2c]);
-      //mask the first two bits which are related to the bitrate configuration.
+      //mask the first three bits which are not related to status.
       StatusReg &= 0xF8;
 
       switch(Flag) 
       {
         case I2C_FLAG_STA:
-          if(StatusReg == I2C_SR_MT_STA)
+          if(FinishOp != 0 && StatusReg == I2C_SR_MT_STA)
             {
               Status = 1;
             }
         break;
         
         case I2C_FLAG_ACK:
-          if(StatusReg == I2C_SR_MT_AACK || StatusReg == I2C_SR_MT_ACK)
+          if(FinishOp != 0 && (StatusReg == I2C_SR_MT_AACK
+              || StatusReg == I2C_SR_MT_ACK))
             {
               Status = 1;
             }
@@ -310,7 +312,9 @@ inline static void
 I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data)
 {
   *(gDataReg[I2c]) = Data;
-  *(gControlReg[I2c]) |= 1 << TWINT;
+  //clear flags for proper operation.
+  *(gControlReg[I2c]) |= 1 << TWINT; 
+  *(gControlReg[I2c]) &= ~(1 << TWSTA);
 }
 
 /*****************************End of File ************************************/
