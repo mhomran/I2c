@@ -16,11 +16,15 @@
 //Status register codes:
 
 //master transmitter
-
 #define I2C_SR_MT_STA 0x08 /**< the start bit is sent successfully */
+#define I2C_SR_MT_RSTA 0x10 /**< the restart bit is sent successfully */
 #define I2C_SR_MT_AACK 0x18 /**< ACK is received after sending the address */
 #define I2C_SR_MT_ACK 0x28 /**< ACK is received after sending a byte */
-#define I2C_SR_MT_RSTA 0x10 /**< the restart bit is sent successfully */
+//master receiver
+#define I2C_SR_MR_STA 0x08 /**< the start bit is sent successfully */
+#define I2C_SR_MR_AACK 0x40 /**< ACK is received after sending the address */
+#define I2C_SR_MR_NACK 0x58 /**< NACK is sent after receiving a byte */
+
 
 #define I2C_PRESCALER_NUM 4 /**< Number of the prescalers */
 
@@ -47,6 +51,7 @@
 typedef enum {
   I2C_FLAG_STA,    /**< Start bit is sent successfully */
   I2C_FLAG_ACK,   /**< Acknowledge is received/sent */
+  I2C_FLAG_NACK,   /**< Not-Acknowledge is received/sent */
 }I2cFlag_t;
 /******************************************************************************
  * module variables definitions
@@ -80,6 +85,8 @@ inline static void I2c_Enable(const I2c_t I2c);
 inline static void I2c_SendStartBit(const I2c_t I2c);
 inline static void I2c_SendStopBit(const I2c_t I2c);
 inline static void I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data);
+inline static uint8_t I2c_ReadDataReg(const I2c_t I2c);
+inline static void I2c_SendNack(const I2c_t I2c);
 static uint8_t I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag);
 /******************************************************************************
  * functions definitions
@@ -189,7 +196,7 @@ I2c_Enable(const I2c_t I2c)
 * @return uint8_t 1 the operations is done successfully
 *                 2 start bit error
 *                 3 address error
-*                 4 reg/data sending error
+*                 4 data sending error
  ******************************************************************************/
 extern uint8_t 
 I2c_SendByte(const I2c_t I2c, 
@@ -223,13 +230,68 @@ I2c_SendByte(const I2c_t I2c,
 }
 
 /******************************************************************************
+* Function : I2c_ReceiveByte()
+*//**
+* \b Description: Read one byte from a device register using I2C <br>
+* POST-CONDITION: A byte is received from the device register <br>
+* @param I2c the id of the I2C peripheral
+* @param Address the address of the register to read using I2C peripheral
+* @param Data a pointer to receive the byte in
+* @return uint8_t 1 the operations is done successfully
+*                 2 start bit error
+*                 3 address error
+*                 4 register sending error
+*                 5 data receiving error
+ ******************************************************************************/
+extern uint8_t
+I2c_ReceiveByte(const I2c_t I2c,
+             const uint8_t Address,
+             const uint8_t Register,
+	     uint8_t* const Data)
+{
+  if(!(I2c < I2C_MAX)) return 0;
+
+  uint8_t res;
+
+  I2c_SendStartBit(I2c);
+  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_STA);
+  if(res == 0) return 2;
+
+  I2c_WriteDataReg(I2c, (Address << 1) | I2C_WRITE);
+  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_ACK);
+  if(res == 0) return 3;
+
+  I2c_WriteDataReg(I2c, Register);
+  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_ACK);
+  if(res == 0) return 4;
+
+  I2c_SendStartBit(I2c);
+  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_STA);
+  if(res == 0) return 2;
+
+  I2c_WriteDataReg(I2c, (Address << 1) | I2C_READ);
+  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_ACK);
+  if(res == 0) return 3;
+
+  I2c_SendNack(I2c);
+  res = I2C_WaitOnFlagUntilTimeout(I2c, I2C_FLAG_NACK);
+  if(res == 0) return 5;
+
+  I2c_SendStopBit(I2c);
+
+  *Data = I2c_ReadDataReg(I2c);
+
+  return 1;
+}
+
+/******************************************************************************
 * Function : I2C_WaitOnFlagUntilTimeout()
 *//**
 * \b Description: Utility function handles I2C Communication Timeout.
 * It also clears the flag if set. <br>
 * @param  I2c the id of the I2c peripheral
 * @param  Flag flag to check.
-* @return uint8_t 1 if there's no timeout, 0 otherwise
+* @return uint8_t 1 if there's no timeout and the flag is set, 0 otherwise
 ******************************************************************************/
 static uint8_t 
 I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
@@ -239,25 +301,42 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
   uint8_t StatusReg;
   uint8_t FinishOp;
 
-  while (Status == 0 && Timeout < I2C_TIMEOUT)  
+  while (Timeout < I2C_TIMEOUT)
     {
       FinishOp = *(gControlReg[I2c]) & (1 << TWINT);
+      if(FinishOp != 0) break;
+
+      Timeout++;
+    }
+
+  if(Timeout != I2C_TIMEOUT)
+    {
       StatusReg = *(gStatusReg[I2c]);
       //mask the first three bits which are not related to status.
       StatusReg &= 0xF8;
 
-      switch(Flag) 
+      switch(Flag)
       {
         case I2C_FLAG_STA:
-          if(FinishOp != 0 && StatusReg == I2C_SR_MT_STA)
+          if(StatusReg == I2C_SR_MT_STA ||
+            StatusReg == I2C_SR_MT_RSTA ||
+            StatusReg == I2C_SR_MR_STA)
             {
               Status = 1;
             }
         break;
-        
+
         case I2C_FLAG_ACK:
-          if(FinishOp != 0 && (StatusReg == I2C_SR_MT_AACK
-              || StatusReg == I2C_SR_MT_ACK))
+          if(StatusReg == I2C_SR_MT_AACK ||
+            StatusReg == I2C_SR_MT_ACK ||
+            StatusReg == I2C_SR_MR_AACK)
+            {
+              Status = 1;
+            }
+        break;
+
+        case I2C_FLAG_NACK:
+          if(StatusReg == I2C_SR_MR_NACK)
             {
               Status = 1;
             }
@@ -266,11 +345,9 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
         default:
         break;
       }
-      Timeout++;
     }
 
-  if(Timeout == I2C_TIMEOUT) return 0;
-  return 1;
+  return Status;
 }
 
 /******************************************************************************
@@ -284,7 +361,7 @@ I2C_WaitOnFlagUntilTimeout(const I2c_t I2c, const I2cFlag_t Flag)
 inline static void
 I2c_SendStartBit(const I2c_t I2c)
 {
-  *(gControlReg[I2c]) |= 1 << TWSTA | 1 << TWINT;
+  *(gControlReg[I2c]) = 1 << TWEN | 1 << TWINT | 1 << TWSTA;
 }
 
 /******************************************************************************
@@ -298,25 +375,48 @@ I2c_SendStartBit(const I2c_t I2c)
 inline static void
 I2c_SendStopBit(const I2c_t I2c)
 {
-  *(gControlReg[I2c]) |= 1 << TWSTO | 1 << TWINT;
+  *(gControlReg[I2c]) = 1 << TWEN | 1 << TWINT | 1 << TWSTO;
 }
 
 /******************************************************************************
-* Function : I2c_SendStopBit()
+* Function : I2c_WriteDataReg()
 *//**
 * \b Description: Utility function to set a byte in the I2C data register
 * to be send by the peripheral.<br>
 * @param  I2c the id of the I2c peripheral
-* @param  Flag flag to check.
 * @return void
 ******************************************************************************/
 inline static void
 I2c_WriteDataReg(const I2c_t I2c, const uint8_t Data)
 {
   *(gDataReg[I2c]) = Data;
-  //clear flags for proper operation.
-  *(gControlReg[I2c]) |= 1 << TWINT; 
-  *(gControlReg[I2c]) &= ~(1 << TWSTA);
+  *(gControlReg[I2c]) = 1 << TWEN | 1 << TWINT;
 }
 
+/******************************************************************************
+* Function : I2c_ReadDataReg()
+*//**
+* \b Description: Utility function to return a byte from the I2C data
+* register <br>
+* @param  I2c the id of the I2c peripheral
+* @return uint8_t the byte received
+******************************************************************************/
+inline static uint8_t
+I2c_ReadDataReg(const I2c_t I2c)
+{
+  return *(gDataReg[I2c]);
+}
+
+/******************************************************************************
+* Function : I2c_SendNack()
+*//**
+* \b Description: Send NACK (Not ACK) signal <br>
+* @param  I2c the id of the I2c peripheral
+* @return void
+******************************************************************************/
+inline static void
+I2c_SendNack(const I2c_t I2c)
+{
+  *(gControlReg[I2c]) = 1 << TWEN | 1 << TWINT;
+}
 /*****************************End of File ************************************/

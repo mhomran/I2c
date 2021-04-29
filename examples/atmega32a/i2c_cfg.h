@@ -16,7 +16,7 @@
  * @brief The timeout of polling whether hardware finished working 
  * TODO: change this as required.
  */
-#define I2C_TIMEOUT 3000 
+#define I2C_TIMEOUT 3000
 /******************************************************************************
  * Includes
  ******************************************************************************/
