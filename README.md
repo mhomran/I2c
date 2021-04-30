@@ -1,6 +1,6 @@
 # I2c
 An I2C driver template and implementation for some embedded systems targets. 
-The driver is blocking, asynchronous and limited to sending/receiving single byte at a time. 
+The driver is blocking, synchronous and limited to sending/receiving single byte at a time. 
 It's made with time tirggered design in mind.
 
 # Acknowledgment
